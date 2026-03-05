@@ -487,7 +487,7 @@ async function startSSHSession(event, options) {
       port: options.port || 22,
       username: options.username || "root",
       // `readyTimeout` covers the entire connection + authentication flow in ssh2.
-      readyTimeout: 20000, // Fast failure for non-interactive auth
+      readyTimeout: 120000, // Allow time for keyboard-interactive (2FA/MFA)
       // Use user-configured keepalive interval (in seconds -> convert to ms)
       // If 0 or not provided, use 10000ms as default
       keepaliveInterval: options.keepaliveInterval && options.keepaliveInterval > 0 ? options.keepaliveInterval * 1000 : 10000,
@@ -508,6 +508,7 @@ async function startSSHSession(event, options) {
       hasPrivateKey: !!options.privateKey,
       hasPassword: !!options.password,
       hasEffectivePassphrase: !!effectivePassphrase,
+      legacyAlgorithms: options.legacyAlgorithms,
     });
 
     log("Auth configuration", {
@@ -673,8 +674,15 @@ async function startSSHSession(event, options) {
         });
       }
 
-      // Finally try keyboard-interactive
-      authMethods.push({ type: "keyboard-interactive", id: "keyboard-interactive" });
+      // For legacy devices (e.g. Cisco CBS250): try "none" first so the SSH
+      // handshake succeeds; credentials are then sent as text via shell prompts.
+      // Then try keyboard-interactive before password to avoid hard-disconnect.
+      if (options.legacyAlgorithms) {
+        authMethods.unshift({ type: "keyboard-interactive", id: "keyboard-interactive" });
+        authMethods.unshift({ type: "none", id: "none" });
+      } else {
+        authMethods.push({ type: "keyboard-interactive", id: "keyboard-interactive" });
+      }
 
       log("Auth methods configured", {
         methods: authMethods.map(m => ({ type: m.type, id: m.id, isDefault: m.isDefault || false })),
@@ -711,7 +719,7 @@ async function startSSHSession(event, options) {
 
           // methodsLeft can be null on first call (before server responds with available methods)
           // Include "agent" for SSH agent-based auth (used with agentForwarding)
-          const availableMethods = methodsLeft || ["publickey", "password", "keyboard-interactive", "agent"];
+          const availableMethods = methodsLeft || (options.legacyAlgorithms ? ["none", "publickey", "password", "keyboard-interactive", "agent"] : ["publickey", "password", "keyboard-interactive", "agent"]);
 
           // Handle partialSuccess case (e.g., password succeeded but server requires additional auth like MFA)
           // When partialSuccess is true, we should try the remaining methods the server is asking for
@@ -793,7 +801,7 @@ async function startSSHSession(event, options) {
             // Note: "agent" uses "publickey" as the underlying method type
             const methodName = method.type === "password" ? "password" :
               method.type === "publickey" ? "publickey" :
-                method.type === "agent" ? "publickey" : "keyboard-interactive";
+                method.type === "agent" ? "publickey" : method.type === "none" ? "none" : "keyboard-interactive";
             if (!availableMethods.includes(methodName) && !availableMethods.includes(method.type)) {
               log("Auth method not available on server, skipping", { method: method.id });
               continue;
@@ -824,6 +832,9 @@ async function startSSHSession(event, options) {
                 username: connectOpts.username,
                 password: connectOpts.password,
               });
+           } else if (method.type === "none") {
+             log("Trying none auth (legacy device shell-prompt login)", { id: method.id });
+             return callback({ type: "none", username: connectOpts.username });
             } else if (method.type === "keyboard-interactive") {
               log("Trying keyboard-interactive auth", { id: method.id });
               // Return string instead of object - ssh2 requires a prompt function
@@ -961,8 +972,28 @@ async function startSSHSession(event, options) {
               }
             };
 
+            // Auto-login for legacy devices (e.g. CBS250) that present shell-based
+            // credential prompts after "none" auth succeeds.
+            let legacyLoginState = options.legacyAlgorithms ? "waiting-username" : "done";
+
             stream.on("data", (data) => {
-              bufferData(data.toString("utf8"));
+              const text = data.toString("utf8");
+
+              if (legacyLoginState === "waiting-username" && text.includes("User Name:")) {
+                stream.write(`${connectOpts.username}\n`);
+                legacyLoginState = "waiting-password";
+                bufferData(text);
+                return;
+              }
+
+              if (legacyLoginState === "waiting-password" && text.includes("Password:")) {
+                stream.write(`${connectOpts.password}\n`);
+                legacyLoginState = "done";
+                bufferData(text);
+                return;
+              }
+
+              bufferData(text);
             });
 
             stream.stderr?.on("data", (data) => {
@@ -1107,6 +1138,7 @@ async function startSSHSession(event, options) {
         if (connectOpts.agent) authMethods.push("agent");
         if (connectOpts.privateKey) authMethods.push("publickey");
         if (connectOpts.password) authMethods.push("password");
+        if (options.legacyAlgorithms) authMethods.unshift("none");
         authMethods.push("keyboard-interactive");
         connectOpts.authHandler = authMethods;
         log("Using simple array authHandler", { authMethods, usedDefaultKeyAsPrimary });
@@ -1118,7 +1150,6 @@ async function startSSHSession(event, options) {
 
       // Enable debug logging for ssh2 to diagnose auth issues
       connectOpts.debug = (msg) => {
-        // Only log auth-related messages to avoid noise
         if (msg.includes('Auth') || msg.includes('auth') || msg.includes('publickey') || msg.includes('keyboard')) {
           log("ssh2 debug", { msg });
         }

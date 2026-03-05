@@ -439,12 +439,92 @@ export interface TerminalSettings {
 }
 
 export const DEFAULT_KEYWORD_HIGHLIGHT_RULES: KeywordHighlightRule[] = [
+  // ─── Genéricos ───────────────────────────────────────────────────────────
   { id: 'error', label: 'Error', patterns: ['\\[error\\]', '\\[err\\]', '\\berror\\b', '\\bfail(ed)?\\b', '\\bfatal\\b', '\\bcritical\\b', '\\bexception\\b'], color: '#F87171', enabled: true },
   { id: 'warning', label: 'Warning', patterns: ['\\[warn(ing)?\\]', '\\bwarn(ing)?\\b', '\\bcaution\\b', '\\bdeprecated\\b'], color: '#FBBF24', enabled: true },
   { id: 'ok', label: 'OK', patterns: ['\\[ok\\]', '\\bok\\b', '\\bsuccess(ful)?\\b', '\\bpassed\\b', '\\bcompleted\\b', '\\bdone\\b'], color: '#34D399', enabled: true },
   { id: 'info', label: 'Info', patterns: ['\\[info\\]', '\\[notice\\]', '\\[note\\]', '\\bnotice\\b', '\\bnote\\b'], color: '#3B82F6', enabled: true },
   { id: 'debug', label: 'Debug', patterns: ['\\[debug\\]', '\\[trace\\]', '\\[verbose\\]', '\\bdebug\\b', '\\btrace\\b', '\\bverbose\\b'], color: '#A78BFA', enabled: true },
-  { id: 'ip-mac', label: 'IP address & MAC', patterns: ['\\b(?:\\d{1,3}\\.){3}\\d{1,3}\\b', '\\b([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\\b'], color: '#EC4899', enabled: true },
+  { id: 'ip-mac', label: 'IP address & MAC', patterns: ['\\b(?:\\d{1,3}\\.){3}\\d{1,3}(?:/\\d{1,2})?\\b', '\\b([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\\b'], color: '#EC4899', enabled: true },
+
+  // ─── Cisco IOS / IOS-XE — Interfaces (nomes completos + abreviações) ─────
+  { id: 'cisco-interface', label: 'Cisco Interface', patterns: [
+    '(GigabitEthernet|FastEthernet|TenGigabitEthernet|HundredGigE|TwentyFiveGigE|FortyGigabitEthernet|AppGigabitEthernet|Port-channel|Loopback|Tunnel|Vlan|Serial|Ethernet|Wlan-GigabitEthernet)\\d[\\d/\\.]*',
+    '\\b(Gi|Fa|Te|Hu|Fo|Tw|Po|Lo|Tu|Se|Ap|Vl|Mg|Ce|In|Eth)\\d[\\d/\\.]*\\b',
+    '\\bBluetooth\\d[\\d/\\.]*\\b'
+  ], color: '#22D3EE', enabled: true },
+
+  // ─── Cisco — Status ───────────────────────────────────────────────────────
+  { id: 'cisco-status-up', label: 'Cisco Up', patterns: [
+    '\\bconnected\\b', '\\bis up, line protocol is up\\b', '\\bup\\b'
+  ], color: '#34D399', enabled: true },
+  { id: 'cisco-status-down', label: 'Cisco Down', patterns: [
+    '\\bnotconnect\\b', '\\berr-disabled\\b', '\\badministratively down\\b', '\\bdown\\b', '\\bdisabled\\b'
+  ], color: '#F87171', enabled: true },
+
+  // ─── Cisco — VLAN ─────────────────────────────────────────────────────────
+  { id: 'cisco-vlan', label: 'Cisco VLAN', patterns: [
+    '\\bVLAN\\s*\\d+\\b', '\\bvlan\\s+\\d+\\b', '\\baccess vlan \\d+\\b',
+    '\\btrunk\\b', '\\bactive\\b', '\\bsuspended\\b'
+  ], color: '#C084FC', enabled: true },
+
+  // ─── Cisco — Comandos ─────────────────────────────────────────────────────
+  { id: 'cisco-commands', label: 'Cisco Commands', patterns: [
+    '\\bshow\\b', '\\bconfigure\\b', '\\bwrite\\b', '\\bcopy\\b', '\\breload\\b', '\\bping\\b', '\\btraceroute\\b', '\\bno\\s+\\b', '\\bdo\\s+'
+  ], color: '#86EFAC', enabled: true },
+
+  // ─── Cisco — Roteamento / BGP ─────────────────────────────────────────────
+  { id: 'cisco-routing', label: 'Cisco Routing', patterns: [
+    '\\bEstablished\\b', '\\bBGP\\b', '\\bOSPF\\b', '\\bEIGRP\\b', '\\bRIP\\b',
+    '\\bMS210\\b', '\\bC9300\\b', '\\bWS-C\\w+\\b', '\\bCISCO\\w+\\b'
+  ], color: '#FCD34D', enabled: true },
+
+  // ─── GPON / Fibra ─────────────────────────────────────────────────────────
+  { id: 'gpon', label: 'GPON / Fibra', patterns: [
+    '(GPON|Gpon|gpon|EPON|epon)\\S*',
+    '(Gpon-OLT|Gpon-ONU|gpon-onu|gpon-olt)\\d[\\d/\\.:-]*',
+    '\\b(OLT|ONU|ONT|ODF)\\b',
+    '(PON|pon)\\d[\\d/\\.]*',
+    '\\boptical\\b', '\\bfiber\\b', '\\bfibra\\b'
+  ], color: '#FB923C', enabled: true },
+
+  // ─── HP Comware — Interfaces (nomes completos + abreviações) ─────────────
+  { id: 'comware-interface', label: 'Comware Interface', patterns: [
+    '(GigabitEthernet|Ten-GigabitEthernet|FortyGigE|HundredGigE|Twenty-FiveGigE|Bridge-Aggregation|Route-Aggregation|LoopBack|Tunnel|Vlan-interface|Serial|Ethernet|XGigabitEthernet)\\d[\\d/\\.]*',
+    '\\b(GE|XGE|FGE|HGE|BAGG|RAGG|MGE|M-GE)\\d[\\d/\\.]*\\b'
+  ], color: '#38BDF8', enabled: true },
+
+  // ─── HP Comware — Status ──────────────────────────────────────────────────
+  { id: 'comware-status-up', label: 'Comware Up', patterns: [
+    '\\bUP\\b', 'current state\\s*:\\s*UP', 'Line protocol\\s*:\\s*UP'
+  ], color: '#34D399', enabled: true },
+  { id: 'comware-status-down', label: 'Comware Down', patterns: [
+    '\\bDOWN\\b', 'current state\\s*:\\s*DOWN', 'Administratively DOWN', 'Line protocol\\s*:\\s*DOWN'
+  ], color: '#F87171', enabled: true },
+
+  // ─── HP Comware — VLAN ────────────────────────────────────────────────────
+  { id: 'comware-vlan', label: 'Comware VLAN', patterns: [
+    'VLAN ID:\\s*\\d+',
+    'VLAN\\s+\\d{4}',
+    'Name:\\s*VLAN\\s*\\d+',
+    '\\bvlan\\s+\\d+\\b',
+    '\\bport link-type\\b', '\\bport access vlan\\b',
+    '\\baccess\\b', '\\btrunk\\b', '\\bhybrid\\b', '\\bstatic\\b'
+  ], color: '#C084FC', enabled: true },
+
+  // ─── HP Comware — Comandos ────────────────────────────────────────────────
+  { id: 'comware-commands', label: 'Comware Commands', patterns: [
+    '\\bdisplay\\b', '\\bsystem-view\\b', '\\bundo\\b',
+    '\\bquit\\b', '\\breturn\\b', '\\bsave\\b', '\\breset\\b',
+    '\\bport auto-power-down\\b', '\\bpoe enable\\b', '\\bstp edged-port\\b'
+  ], color: '#86EFAC', enabled: true },
+
+  // ─── HP Comware — Prompt ──────────────────────────────────────────────────
+  { id: 'comware-prompt', label: 'Comware Prompt', patterns: [
+    '<[A-Za-z0-9_\\-]+>',
+    '\\[[A-Za-z0-9_\\-]+\\]',
+    '\\[[A-Za-z0-9_\\-]+-[\\w\\-/]+\\]'
+  ], color: '#FCD34D', enabled: true },
 ];
 
 export const DEFAULT_TERMINAL_SETTINGS: TerminalSettings = {
